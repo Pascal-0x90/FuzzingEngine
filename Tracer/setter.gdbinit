@@ -1,5 +1,5 @@
-source test.py
+source tracer.py
 
 define hook-stop
-    python fuzin()
+    python progress()
 end

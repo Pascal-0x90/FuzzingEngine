@@ -54,7 +54,7 @@ def fuzzer(binary: str, size: int = 250):
     while True:
         name = gen_input_file(''.join([string.ascii_letters[random.randint(i,len(string.ascii_letters)-1)] for i in range(0,6)]), size)
         fuzz_in = open("./input/fuzz_" + name ,"rb").read().decode()
-        proc = run([binary], stdout=PIPE, input=fuzz_in, encoding='ascii')
+        # proc = run([binary], stdout=PIPE, input=fuzz_in, encoding='ascii')
         if proc.returncode != 0:
             print("="*20)
             print(f"CRASH FROM: ./input/fuzz_{name}")
