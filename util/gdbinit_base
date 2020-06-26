@@ -1,3 +1,4 @@
+python sys.path.append(".")
 source tracer.py
 
 define hook-stop
