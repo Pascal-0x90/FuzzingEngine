@@ -211,7 +211,7 @@ def main(binary):
     # Check if input dir is empty
     if len(os.listdir(INPUT_DIR)) <= 0:
         # Generate random input via library
-        get_input_file()
+        fuz.get_input_file()
 
     # Instantiate queue. Set the queue to the input folder
     q = queue.deque(os.listdir(INPUT_DIR))
