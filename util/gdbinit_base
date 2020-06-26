@@ -3,3 +3,7 @@ source tracer.py
 define hook-stop
     python progress()
 end
+
+define hook-quit
+    set confirm off
+end

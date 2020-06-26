@@ -1,9 +1,12 @@
 #!/usr/bin/env python3
 
 # Standard Python Libraries
+from __future__ import print_function
 import os
 import queue
 from typing import List
+import sys
+from signal import signal, SIGINT
 
 # Third-Party Libraries
 from elftools.elf.elffile import ELFFile
@@ -17,6 +20,16 @@ SHARED_MEM = [0]*(64*1024) # ~6 mb
 GLOBAL_MAPPINGS = []
 CURRENT = ""  # Our current File
 INPUT_DIR = "" # input directory to hold candidates
+CRASH_DIR = "" # Crash directory to hold heroes 
+
+# Aux lib
+def eprint(*args, **kwargs):
+    print(*args, file=sys.stderr, **kwargs)
+
+def handler(signal_received, frame):
+    # Handle any cleanup here
+    print(f"[-] Last file ran: ME")
+    gdb.execute("quit",to_string=True)
 
 def grab_jmps(binary):
     """Return list of all conditional jumps in key-value set"""
@@ -45,18 +58,18 @@ def set_break_points(binary):
     jmps = grab_jmps(binary)
 
     # Grab base address
-    gdb.execute('break main')
-    gdb.execute('run')
+    gdb.execute('break main', to_string=True)
+    gdb.execute('run', to_string=True)
     procmap = gdb.execute('info proc map', to_string=True).splitlines()
     base_addr = int(procmap[4].split(" ")[6],base=16)
 
     # Set breakpoints for all jumps
     for jump in jmps:
-        gdb.execute(f'break *{hex(jump[0]+base_addr)}')
+        gdb.execute(f'break *{hex(jump[0]+base_addr)}', to_string=True)
     #     print(f'Setting break at addr: {hex(jump[0]+base_addr)}')
 
     # Clean up main breakpoints (should be first one)
-    gdb.execute("del bre 1")
+    gdb.execute("del bre 1", to_string=True)
 
 # Inspired by https://github.com/mahaloz/Pihulu
 def grab_status():
@@ -109,13 +122,13 @@ def progress():
     global SHARED_MEM
     global CURRENT
     global INPUT_DIR
+    global CRASH_DIR
 
     # Verify no crash
     try:
         assert crash_check() == False
     except AssertionError:
-        print("COPYING")
-        os.system(f"cp {INPUT_DIR}/{CURRENT} ./crash/.")
+        os.system(f"cp {INPUT_DIR}/{CURRENT} ./{CRASH_DIR}/.")
         stop()
         return
 
@@ -132,7 +145,7 @@ def progress():
         PREV_ADDR = CURRENT_ADDR >> 1
 
     # Continue
-    gdb.execute("continue")
+    gdb.execute("continue", to_string=True)
     progress()
 
 def run(data_in):
@@ -145,7 +158,7 @@ def run(data_in):
     SHARED_MEM = [0]*(64*1024)
 
     # Execute program
-    gdb.execute(f"run < ./{INPUT_DIR}/{data_in}")
+    gdb.execute(f"run < ./{INPUT_DIR}/{data_in}", to_string=True)
 
     # Store current progress
     progress()
@@ -167,9 +180,11 @@ def main(binary):
     global SHARED_MEM
     global CURRENT
     global INPUT_DIR
+    global CRASH_DIR
 
     # Local vars
-    INPUT_DIR = "./input"
+    INPUT_DIR = gdb.execute("p $indir", to_string=True).split('"')[1]
+    CRASH_DIR = gdb.execute("p $crash", to_string=True).split('"')[1]
 
     # Set initial break_points
     set_break_points(binary)
@@ -181,6 +196,7 @@ def main(binary):
 
     # Instantiate queue. Set the queue to the input folder
     q = queue.deque(os.listdir(INPUT_DIR))
+    stats_last = 0
 
     while len(q) > 0:
         # Grab file name from queue
@@ -201,8 +217,19 @@ def main(binary):
                 GLOBAL_MAPPINGS.append(SHARED_MEM)
             else:
                 os.remove(f"{INPUT_DIR}/{mutation}")
-        print(f"GLOBAL_MAPPINGS: {len(GLOBAL_MAPPINGS)}")
-        print(f"Queue: {len(q)}")
+
+        # Print status
+        eprint(" " * stats_last + "\r", end="")
+        stats = f"Current queue size: {len(q)}\r"
+        eprint(stats, end="")
+        stats_last = len(stats)
+
+    # Cleanup and exit
+    os.system("rm gdbinit")
+    eprint(f"\nUnique Paths: {len(GLOBAL_MAPPINGS)}")
+    gdb.execute("quit",to_string=True)
     return
 
-main("./chall.elf")
+# Indirect name pass
+binary = gdb.current_progspace().filename
+main(binary)
